@@ -35,6 +35,9 @@ This repo follows that order and provides folders for labs and exercises that su
 .
 ├── README.md
 ├── curriculum.md
+├── courses/
+│   └── 01-welcome/
+│       └── README.md
 ├── labs/
 │   ├── README.md
 │   ├── 01-first-agent/

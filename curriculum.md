@@ -24,6 +24,8 @@ Topics:
 - production-ready AI agent foundations
 - overview of the ADK approach
 
+Course artifact: [courses/01-welcome/README.md](courses/01-welcome/README.md)
+
 ### 2. Build Your First Agent with ADK
 Focus: hands-on implementation
 
