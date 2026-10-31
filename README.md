@@ -2,6 +2,15 @@
 
 This repository is a learning scaffold aligned to the Google Skills learning path: “Develop Agents with Agent Development Kit (ADK).” It is designed to mirror the course flow and hands-on lab progression for building, configuring, and extending AI agents with Google’s Agent Development Kit (ADK).
 
+## Environment target
+
+This repo is configured for learners using:
+
+- macOS
+- Python 3.11
+
+The setup instructions are documented in [SETUP.md](SETUP.md).
+
 ## Purpose
 
 The goal of this repo is to provide a practical study companion for the course and associated labs. It organizes the learning journey into clear stages:
@@ -36,7 +45,9 @@ This repo follows that order and provides folders for labs and exercises that su
 ├── README.md
 ├── curriculum.md
 ├── courses/
-│   └── 01-welcome/
+│   ├── 01-welcome/
+│   │   └── README.md
+│   └── 02-build-your-first-agent/
 │       └── README.md
 ├── labs/
 │   ├── README.md
@@ -81,12 +92,12 @@ The Model Context Protocol (MCP) makes it possible for agents to interact with e
 
 Each lab folder contains exercises and implementation prompts that map to the course flow.
 
-- `labs/01-first-agent` – set up and run a simple ADK agent
-- `labs/02-tools` – attach external tools to the agent
-- `labs/03-memory` – manage session state and memory
-- `labs/04-optimization` – tune prompts, planning, and model behavior
-- `labs/05-mcp-tools` – connect to a tool server using MCP
-- `labs/06-skill-badge` – final capstone and review tasks
+- [labs/01-first-agent](labs/01-first-agent/README.md) – set up and run a simple ADK agent
+- [labs/02-tools](labs/02-tools/README.md) – attach external tools to the agent
+- [labs/03-memory](labs/03-memory/README.md) – manage session state and memory
+- [labs/04-optimization](labs/04-optimization/README.md) – tune prompts, planning, and model behavior
+- [labs/05-mcp-tools](labs/05-mcp-tools/README.md) – connect to a tool server using MCP
+- [labs/06-skill-badge](labs/06-skill-badge/README.md) – final capstone and review tasks
 
 ## Getting started
 
