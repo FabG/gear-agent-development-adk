@@ -2,6 +2,14 @@
 
 This curriculum is based on the Google Skills learning path for developing production-minded AI agents using Google’s Agent Development Kit (ADK).
 
+## Environment target
+
+- Operating system: macOS
+- Python version: 3.11
+- Local virtual environment recommended: `.venv`
+
+The install and setup workflow is documented in [SETUP.md](SETUP.md).
+
 ## Learning objectives
 
 By the end of this path, learners should be able to:
@@ -34,6 +42,8 @@ Topics:
 - creating an agent definition
 - basic configuration and execution
 - simple agent invocation and testing
+
+Course artifact: [courses/02-build-your-first-agent/README.md](courses/02-build-your-first-agent/README.md)
 
 ### 3. Add Agent Capabilities With Tools
 Focus: turning an agent into an assistant
