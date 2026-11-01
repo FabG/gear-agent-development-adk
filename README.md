@@ -73,6 +73,10 @@ This repo follows that order and provides folders for labs and exercises that su
 
 ## Core concepts
 
+### Quick reference
+
+For a compact summary of the most important ADK settings, see [cheat-sheet-google-adk.md](cheat-sheet-google-adk.md).
+
 ### Agent Development Kit (ADK)
 ADK provides a structured approach to building agent workflows, tool use, memory, orchestration, and deployment-ready logic.
 
