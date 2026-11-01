@@ -139,6 +139,80 @@ This is intentionally simple. The important idea is that a working ADK agent sho
 - a clear instruction set
 - a way to receive user input and produce a response
 
+## Two ways to define agents
+
+ADK agents can be defined in Python code or with a YAML Agent Config file. Both
+approaches describe an agent using the same core settings, such as its name,
+model, description, and instructions.
+
+### Method 1: Python code
+
+This is the approach used in this lab. A standard Python project created with
+`adk create my_agent` includes an `agent.py` file:
+
+```python
+from google.adk.agents import Agent
+
+root_agent = Agent(
+        model="gemini-flash-latest",
+        name="assistant_agent",
+        description="A helpful assistant",
+        instruction="You are a helpful assistant.",
+)
+```
+
+Python is a good fit when you need custom tools, callbacks, complex orchestration,
+or full programmatic control.
+
+### Method 2: YAML Agent Config
+
+ADK can also create a YAML-based agent project:
+
+```bash
+adk create --type=config my_config_agent
+```
+
+This creates a project containing `root_agent.yaml` and `.env`. The same basic
+agent can be described in YAML:
+
+```yaml
+name: assistant_agent
+model: gemini-flash-latest
+description: A helpful assistant
+instruction: You are a helpful assistant.
+```
+
+YAML Agent Config is useful for simple agents, quick experiments, sharing
+configuration, and cases where non-programmers need to adjust agent behavior.
+Use a block scalar (`|`) for longer multi-line instructions:
+
+```yaml
+instruction: |
+    You are a patient tutor.
+    Guide learners through a problem one step at a time.
+```
+
+Agent Config currently supports Python code for tools and other functionality
+that requires programming. The Agent Config feature is experimental; review its
+[known limitations](https://adk.dev/agents/config/#known-limitations) before
+using it.
+
+| Aspect | YAML Agent Config | Python code |
+| --- | --- | --- |
+| Editing | Simple text configuration | Requires Python knowledge |
+| Best suited for | Simple agents and quick prototypes | Custom tools and complex orchestration |
+| Flexibility | Configurable options in the schema | Full programmatic control |
+
+YAML-defined agents use the same local run commands as Python-defined agents.
+For example, from the parent folder of `my_config_agent`, run:
+
+```bash
+adk web my_config_agent
+```
+
+See the [ADK Agent Config documentation](https://adk.dev/agents/config/) for
+details.
+
 ## Step 5: Run your agent locally
 
 The same `agent.py` can be used with different local run methods. Use
