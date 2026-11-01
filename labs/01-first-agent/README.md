@@ -139,43 +139,150 @@ This is intentionally simple. The important idea is that a working ADK agent sho
 - a clear instruction set
 - a way to receive user input and produce a response
 
-## Step 5. Verify your set up
+## Step 5: Run your agent locally
 
-Let’s confirm everything works by running the ADK web interface.
+The same `agent.py` can be used with different local run methods. Use
+`adk web` for visual development and testing, `adk run` for terminal-based
+execution, or `adk api_server` to expose the agent as an API service.
 
-### Start the ADK web interface:
+### Method 1: Visual interface with `adk web`
+
+From the folder containing `my_first_agent`, start the web interface:
 
 ```bash
+cd labs/01-first-agent
 adk web
 ```
 
-### Expected output:
+This opens a browser-based UI where you can chat with your agent interactively.
+It is useful for visual development, debugging, and demos.
 
-```text
-INFO:     Started server process
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
-```
+### Method 2: Terminal execution with `adk run`
 
-### What this does
-
-- Starts a local web server at http://localhost:8000/
-- Opens a browser tab automatically
-- Provides a visual interface to interact with your agent
-
-### Success indicators:
-
-- No error messages seen in the terminal
-- Browser opens to the ADK interface.
-- You see the web UI with your agent name.
-
-## Alternative way to run the agent
-
+From the folder containing `my_first_agent`, run:
 
 ```bash
-adk run .
+adk run my_first_agent
 ```
+
+The terminal becomes interactive. Type a message and press **Enter** to receive
+a response, then continue the conversation. Press **Ctrl+C** to exit.
+
+This method is useful for quick development tests, command-line workflows,
+servers without a GUI, automated testing scripts, and CI/CD pipelines.
+
+### Method 3: API service with `adk api_server`
+
+From the folder containing `my_first_agent`, start the API server:
+
+```bash
+adk api_server my_first_agent
+```
+
+The server runs locally at `http://127.0.0.1:8000`. Open
+`http://localhost:8000/docs` to view its interactive OpenAPI documentation.
+Keep the server running while sending requests from another terminal or
+application. Press **Ctrl+C** in the server terminal to stop it.
+
+This method is useful for integrating the agent into web applications, mobile
+app backends, microservices, and for local API development before deployment.
+
+| Method | Best for | Session persistence |
+| --- | --- | --- |
+| `adk web` | Development, debugging, and demos | Yes, in the browser |
+| `adk run` | Quick tests and command-line workflows | No |
+| `adk api_server` | API integrations and pre-production testing | Depends on the client or backend session store |
+
+Choose the method that fits your workflow. All three methods use the same agent
+definition; the `agent.py` file does not need to change.
+
+## Three ways to deploy your agent
+
+`adk web` and `adk run` are local development tools. To make an agent available
+outside your computer, choose a hosting destination. ADK's three common Google
+Cloud options are Agent Runtime, Cloud Run, and Google Kubernetes Engine (GKE).
+
+Before deploying, make sure your agent project is in the ADK package structure
+(`my_first_agent/agent.py` and `my_first_agent/__init__.py`), and that the
+project's `root_agent` is the agent you intend to deploy. You will also need a
+Google Cloud project, billing enabled, the Google Cloud CLI installed and
+authenticated, and model credentials configured securely for the selected
+runtime. Do not put API keys directly in source code or commit them to Git.
+
+Set your project and region in the terminal. Replace the example values with
+your own:
+
+```bash
+export GOOGLE_CLOUD_PROJECT="your-project-id"
+export GOOGLE_CLOUD_LOCATION="us-central1"
+export AGENT_PATH="labs/01-first-agent/my_first_agent"
+gcloud auth login
+gcloud config set project "$GOOGLE_CLOUD_PROJECT"
+```
+
+### 1. Agent Runtime on Google Cloud
+
+Choose Agent Runtime for a managed agent-focused service. The ADK CLI packages
+and deploys the agent to Agent Runtime. Google Cloud APIs and permissions must
+be configured first; deployment may incur charges.
+
+```bash
+adk deploy agent_engine \
+    --project="$GOOGLE_CLOUD_PROJECT" \
+    --region="$GOOGLE_CLOUD_LOCATION" \
+    --display_name="My First Agent" \
+    "$AGENT_PATH"
+```
+
+After deployment, note the resource ID and verify the agent in the Agent Runtime
+console. See the [Agent Runtime deployment guide](https://adk.dev/deploy/agent-runtime/deploy/).
+
+### 2. Cloud Run
+
+Choose Cloud Run to run the agent as a managed, autoscaling container. The ADK
+CLI builds and deploys the service. Add `--with_ui` to include the ADK web UI;
+otherwise, the API server is deployed without that UI.
+
+```bash
+adk deploy cloud_run \
+    --project="$GOOGLE_CLOUD_PROJECT" \
+    --region="$GOOGLE_CLOUD_LOCATION" \
+    --with_ui \
+    "$AGENT_PATH"
+```
+
+When prompted about unauthenticated access, choose based on your security needs;
+do not make an agent public unless that is intentional. See the [Cloud Run
+deployment guide](https://adk.dev/deploy/cloud-run/).
+
+### 3. Google Kubernetes Engine (GKE)
+
+Choose GKE when you need Kubernetes control over the agent's containerized
+deployment. This option requires an existing GKE cluster, the `gcloud` and
+`kubectl` CLIs, enabled Google Cloud APIs, and appropriate permissions.
+
+```bash
+adk deploy gke \
+    --project="$GOOGLE_CLOUD_PROJECT" \
+    --cluster_name="your-cluster-name" \
+    --region="$GOOGLE_CLOUD_LOCATION" \
+    --with_ui \
+    "$AGENT_PATH"
+```
+
+The command deploys to the cluster; the default service is internal to the
+cluster. Review the service exposure and identity configuration before making
+it externally accessible. See the [GKE deployment guide](https://adk.dev/deploy/gke/).
+
+| Destination | Good fit when you need |
+| --- | --- |
+| Agent Runtime | A managed service designed for production agents |
+| Cloud Run | Managed container hosting with autoscaling |
+| GKE | Kubernetes control and cluster-level customization |
+
+These are cloud deployments, separate from the local `adk web` and `adk run`
+commands above. Review each platform's current pricing, supported regions, IAM
+requirements, and credential guidance before deploying.
 
 
 ## Step 6: Test with realistic prompts
