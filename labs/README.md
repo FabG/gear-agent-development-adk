@@ -11,6 +11,10 @@ This folder contains the hands-on exercises that align with the Google Skills pa
 - `05-mcp-tools` — connect an agent to an external service using MCP
 - `06-skill-badge` — final review and skill badge preparation
 
+## Challenge lab
+
+- [`01-challenge-lab`](01-challenge-lab/README.md) — repair and deploy the Cymbal Travel agents for search, structured destination validation, and brochure auditing
+
 ## How to use these labs
 
 1. Start with the first lab and complete in order.
