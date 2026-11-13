@@ -484,12 +484,315 @@ consistency, variation, response length, and usefulness. Also compare model
 choices against the same prompts rather than assuming a model or setting is best
 for every task.
 
+## 4. The problem: Complex tasks need structured thinking
+
+### Introduction: From reactive to thoughtful agents
+
+Earlier examples respond to requests without an explicitly configured planner:
+
+```python
+from google.adk.agents import LlmAgent
+
+agent = LlmAgent(
+    model="gemini-flash-latest",
+    name="basic_problem_solver",
+    description="A simple agent that responds directly to user queries",
+    instruction="Solve problems for users",
+)
+
+# User: "Plan a trip to Japan for 2 weeks with a $5000 budget"
+# A direct answer might overlook constraints or alternatives.
+```
+
+This can work well for simple tasks. Complex requests need more deliberate
+problem decomposition, comparison of alternatives, and checks against constraints.
+Without explicit task guidance and evaluation, an answer may skip these steps,
+provide surface-level suggestions, or jump to a conclusion.
+
+Omitting `planner` does not prove that a model performs no reasoning: supported
+Gemini models may think by default. Configuring a planner makes the application's
+use of native thinking explicit; it does not guarantee a better answer.
+
+### What qualifies as a complex problem?
+
+Complex problems involve multiple considerations, trade-offs, or dependent steps:
+
+| Type | Example | What needs analysis |
+| --- | --- | --- |
+| Business strategy | “How can I reduce cloud costs by 30% without impacting performance?” | Cost drivers, performance requirements, measurement, and a phased rollout |
+| Technical decisions | “Should I use microservices or a monolith for my startup MVP?” | Delivery speed, team size, operational complexity, and future growth |
+| Multi-step planning | “Plan a 2-week Japan trip for a family of 4 on a $5000 budget.” | Flights, accommodation, activities, meals, and budget feasibility |
+
+Simple tasks usually do not need additional planning configuration:
+
+- **Direct factual questions:** “What is the capital of France?”
+- **Single calculations:** “Convert 100 USD to EUR using the supplied exchange rate.”
+  A current conversion requires a current rate from a reliable source or tool.
+- **Straightforward tasks:** “Greet the user warmly.”
+
+### Planning versus multi-agent approaches
+
+Use planning when one agent needs to work through several steps or trade-offs
+within its domain. Use multiple agents when responsibilities benefit from
+separate specialized skills, tools, or instructions. These approaches can also
+be combined. This section focuses on one agent using `BuiltInPlanner` with
+Gemini's native thinking capabilities.
+
+### The root problem
+
+Complex tasks require understanding constraints, breaking down the problem,
+considering options, and checking a proposed approach before responding.
+A broad instruction alone does not specify those expectations:
+
+```python
+problem_solver = LlmAgent(
+    model="gemini-flash-latest",
+    name="unplanned_solver",
+    description="Answers complex questions without an explicit planner",
+    instruction="Help users solve complex problems",
+)
+
+# User: "How can I reduce my company's cloud costs by 30% without impacting performance?"
+# Evaluate whether the answer identifies missing data, compares options,
+# and proposes measurable steps instead of generic cost-saving advice.
+```
+
+Planning configuration can support this work. For review and governance, record
+inputs, assumptions, tool results, decisions, and outcomes. Thought summaries
+can help debugging, but are not a complete reasoning trace or a guarantee of
+compliance with enterprise requirements.
+
+### The solution: Planning with `BuiltInPlanner`
+
+ADK's singular `planner` parameter accepts a planner instance.
+`BuiltInPlanner` configures the model's native thinking through `ThinkingConfig`.
+See [ADK's planner configuration guidance](https://adk.dev/agents/llm-agents/#planning).
+
+```python
+from google.adk.agents import LlmAgent
+from google.adk.planners import BuiltInPlanner
+from google.genai import types
+
+planning_agent = LlmAgent(
+    model="gemini-flash-latest",
+    name="systematic_planner",
+    description="Solves complex problems using native thinking",
+    planner=BuiltInPlanner(
+        thinking_config=types.ThinkingConfig(
+            include_thoughts=True,  # Request available thought summaries
+            thinking_budget=1024,  # Thinking-token budget where supported
+        ),
+    ),
+    instruction="Solve complex problems systematically",
+)
+```
+
+The numeric budgets in this section illustrate models that support
+`thinking_budget`. Check the model behind a `latest` alias before running them;
+other models use `thinking_level` instead. Use the selected model's supported
+settings rather than assuming these examples apply to every Gemini version.
+
+### Seeing planning in action
+
+Compare the same prompt with a basic agent and a planning-enabled agent:
+
+> Should I buy or lease a car for my 50-mile daily commute?
+
+For a fair comparison, keep the model, instructions, tools, and prompt fixed,
+and change only the planning configuration. The following are illustrative
+quality differences to look for, not recorded model outputs:
+
+| A shallow answer might… | A more useful answer should… |
+| --- | --- |
+| Say buying is better because leases limit mileage | Clarify whether 50 miles is the daily total and how many days per week the user drives |
+| Compare monthly payments only | Compare costs over the same ownership period |
+| Ignore non-commute driving | Calculate commute mileage and add an allowance for personal trips |
+| Assume a standard lease limit | Use the actual lease allowance and overage fees |
+| Make a blanket recommendation | Explain when each option fits the user's constraints |
+
+For an assumed 50-mile total daily commute, five days per week, and 52 weeks,
+commuting alone is `50 × 5 × 52 = 13,000` miles per year. This is an arithmetic
+example, not an estimate of the user's actual driving or a vehicle quote.
+
+Do not subtract a car's resale value from loan payments and call the result
+net cost while ignoring outstanding debt. A comparison at the sale date needs
+down payment, payments made, operating costs, and remaining loan payoff, less
+sale proceeds. Leasing needs upfront costs, payments, operating costs, and
+applicable end-of-lease or mileage charges. Ask for missing figures rather than
+inventing them.
+
+Look for problem decomposition, multiple factors, quantified assumptions,
+scenario comparisons, and a recommendation tied to evidence. A planner does
+not replace clear instructions, reliable data, or validation of calculations.
+
+### Core concepts
+
+#### 1. The `planner` parameter
+
+Use `planner=BuiltInPlanner(...)`, not `planners=`. Import planners from
+`google.adk.planners`. The examples here use Python and native Gemini thinking;
+the planner does not introduce separate specialist agents.
+
+#### 2. Configuring `ThinkingConfig`
+
+```python
+from google.genai import types
+
+# Request summaries for development and debugging.
+transparent_config = types.ThinkingConfig(
+    include_thoughts=True,
+    thinking_budget=1024,
+)
+
+# Do not request summaries; thinking remains configured.
+opaque_config = types.ThinkingConfig(
+    include_thoughts=False,
+    thinking_budget=512,
+)
+```
+
+- **`include_thoughts`:** Requests available thought summaries, not the full raw
+  internal reasoning. Setting it to `False` does not disable thinking. Display
+  and capture depend on the client and telemetry configuration.
+- **`thinking_budget`:** Guides thinking-token use on supported models. A larger
+  budget allows more reasoning effort but does not guarantee better quality;
+  actual usage can vary. Compare quality, latency, and token usage empirically.
+- **Output limits:** Thinking tokens can consume the total output budget, leaving
+  fewer tokens for the visible answer. Do not assume the thinking budget is
+  independent of `max_output_tokens`.
+
+See the [Gemini thinking guide](https://ai.google.dev/gemini-api/docs/thinking)
+for model-specific controls, thought summaries, and token accounting.
+
+#### 3. Choosing between planners
+
+| Planner | Mechanism | Useful when |
+| --- | --- | --- |
+| `BuiltInPlanner` | Configures a supported model's native thinking | Using reasoning-capable Gemini models |
+| `PlanReActPlanner` | Prompts a plan/action/reasoning/final-answer structure | A model lacks native thinking or a workflow benefits from explicit plan-and-act output |
+
+`PlanReActPlanner` is not restricted to non-Gemini models. It guides output
+through instructions; it does not enforce factual correctness or replace a
+structured response schema. Its format uses markers such as `/*PLANNING*/`,
+`/*ACTION*/`, `/*REASONING*/`, and `/*FINAL_ANSWER*/`.
+
+```python
+from google.adk.planners import PlanReActPlanner
+
+# Pass this to an LlmAgent configured with a supported model or model adapter.
+plan_react_planner = PlanReActPlanner()
+# Example agent argument: planner=plan_react_planner
+```
+
+This lab focuses on `BuiltInPlanner`.
+
+#### 4. When to use planning
+
+Use explicit planning configuration for strategy analysis, troubleshooting with
+several possible causes, constrained schedules, and decisions with competing
+objectives. For greetings, supplied-data calculations, and direct factual
+questions, start with a simpler configuration and evaluate whether extra
+reasoning effort adds value.
+
+#### 5. Debugging with thought summaries
+
+Request `include_thoughts=True` during development and inspect available
+summaries alongside the final answer and tool events. Check whether the agent
+recognized constraints, missed required information, or relied on unsupported
+assumptions. Summaries may be absent and are not full internal traces. In a
+custom event consumer, distinguish thought parts from final-answer text rather
+than assuming the first text part is the answer.
+
+Enable and verify observability separately if you need persisted telemetry;
+setting a planner does not automatically create a complete audit record.
+
+### Hands-on: build a planning-enabled problem solver
+
+From `labs/04-optimization`, create the project:
+
+```bash
+adk create problem_solver
+```
+
+Replace `problem_solver/agent.py` with:
+
+```python
+"""Problem-solving agent with native thinking configured through ADK."""
+
+from google.adk.agents import LlmAgent
+from google.adk.planners import BuiltInPlanner
+from google.genai import types
+
+root_agent = LlmAgent(
+    model="gemini-flash-latest",
+    name="strategic_problem_solver",
+    description="Solves complex problems using multi-step reasoning and planning",
+    instruction="""
+You are a Strategic Problem Solver.
+
+Your approach to complex problems:
+1. Understand: Identify the goal, constraints, and missing information.
+2. Analyze: Compare approaches, assumptions, and trade-offs.
+3. Plan: Develop a practical sequence of steps.
+4. Recommend: Provide clear actions and a concise explanation of your choice.
+
+Consider short-term and long-term consequences, risks, and mitigations.
+Ask for essential missing facts rather than inventing them.
+Keep simple answers brief; make complex recommendations structured and useful.
+""",
+    planner=BuiltInPlanner(
+        thinking_config=types.ThinkingConfig(
+            include_thoughts=True,
+            thinking_budget=2048,  # Use only with a model supporting this budget
+        ),
+    ),
+)
+```
+
+Configure model access for the new agent using the same backend as your earlier
+labs. From the parent directory, `labs/04-optimization`, start the UI:
+
+```bash
+adk web
+```
+
+Select `problem_solver` and test these scenarios:
+
+1. **Complex planning:** “How should I prepare for a career transition from
+   software engineering to product management over the next 12 months?”
+   Look for skill gaps, alternative paths, dependencies, and a phased roadmap.
+   An illustrative structure is foundations in months 1–3, applied practice in
+   months 4–6, demonstrated experience in months 7–9, and a targeted search in
+   months 10–12. The agent should adapt this to the user's circumstances.
+2. **Simple question:** “What is the capital of France?” Check for a direct
+   answer. Measure usage rather than assuming no thinking overhead.
+3. **Trade-off analysis:** “Should I rent or buy a home in San Francisco if I
+   plan to stay for 3–5 years?” Evaluate whether the agent requests relevant
+   costs and assumptions, compares scenarios, and avoids invented market data
+   or a definitive recommendation without sufficient information.
+
+Repeat the prompts with a basic agent using the same model and instructions.
+Record constraint coverage, factual accuracy, usefulness, latency, and token
+usage. Because the model may think by default, label this comparison as default
+versus explicitly configured thinking. Use a supported thinking-off setting
+only if you specifically need a no-thinking baseline.
+
+### Key takeaways
+
+- Use the singular `planner` parameter and imports from `google.adk.planners`.
+- `BuiltInPlanner` configures native thinking; model support determines the
+  available budget or level controls.
+- Thought summaries can help debugging but do not expose complete raw reasoning.
+- Account for thinking in token usage and output limits.
+- Evaluate planning against representative complex and simple tasks; retain
+  clear instructions and evidence checks.
+
 ## Other optimization areas
 
 - **Model configuration:** Select model settings to match the task rather than
   assuming one configuration fits every use case.
-- **Planning:** Explore ADK's `BuiltInPlanner` for tasks that benefit from
-  structured planning.
+- **Planning:** Apply the configuration and comparison workflow in section 4
+  to tasks that benefit from structured thinking.
 
 ### Suggested workflow
 
