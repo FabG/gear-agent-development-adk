@@ -86,8 +86,19 @@ Agents become useful when they can connect to real capabilities such as web sear
 ### Memory and state
 Stateful agents remember context, preferences, and prior interactions. This improves personalization and multi-turn conversation quality.
 
-### Optimization
-Agent behavior can be improved through better prompts, model selection, planning strategies, and clear operational constraints.
+### Optimize Agent Behavior
+
+The [Optimize Agent Behavior course](https://www.skills.google/paths/3545/course_templates/1564)
+shows how to make agent behavior more predictable. Its structured-instructions
+lessons explain why vague prompts lead to inconsistent scope, methods, tone, and
+edge-case handling, then introduce five reusable patterns: **identity**,
+**mission**, **methodology**, **boundaries**, and **few-shot examples**. The
+course also covers structured output, model selection, and planning with ADK's
+`BuiltInPlanner`.
+
+The corresponding [optimization lab](labs/04-optimization/README.md) provides
+a support-agent example and scenarios for applying the patterns and evaluating
+their effect. Start with the lesson on [structured instructions](https://www.skills.google/paths/3545/course_templates/1564/html_bundles/686132).
 
 ### MCP
 The Model Context Protocol (MCP) makes it possible for agents to interact with external tools and services in a standardized, extensible way.
