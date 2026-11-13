@@ -787,6 +787,349 @@ only if you specifically need a no-thinking baseline.
 - Evaluate planning against representative complex and simple tasks; retain
   clear instructions and evidence checks.
 
+## 5. Putting it all together: Agent patterns
+
+These examples combine instruction writing, model configuration, structured
+output, and planning. Each snippet is independent; choose one as a starting
+point and adapt it to your domain.
+
+The model aliases, sampling settings, and numeric thinking budgets below follow
+the preceding lessons. Verify support for the selected model: some models use
+`thinking_level`, ignore sampling overrides, or cannot disable thinking.
+`include_thoughts=True` requests available summaries, not raw internal reasoning.
+Low temperature does not guarantee deterministic or policy-compliant output.
+
+The schemas retain flexible dictionaries from the course examples. For a stable
+integration, prefer explicitly typed nested models and check the backend's
+supported JSON Schema subset. Validate returned JSON and business rules before
+using the result. See [Gemini structured output guidance](https://ai.google.dev/gemini-api/docs/structured-output).
+
+`output_key` stores the final response text in **session state**. A key named
+`approval_review` is not a Boolean approval, and setting it does not automatically
+write to Memory Bank. Persistent sessions and long-term memory require their
+own services and configuration. See [ADK session state](https://adk.dev/sessions/state/).
+
+### Customer intake and ticket classification
+
+Combines structured ticket output with native thinking. It drafts ticket details; creating a ticket requires a separate tool or integration.
+
+```python
+from google.adk.agents import LlmAgent
+from google.adk.planners import BuiltInPlanner
+from google.genai import types
+from pydantic import BaseModel, Field
+from typing import Dict, Any
+
+class TicketOutput(BaseModel):
+    ticket: Dict[str, Any] = Field(description="Ticket details")
+    priority: str = Field(description="Priority level")
+
+customer_agent = LlmAgent(
+    model="gemini-flash-latest",
+    name="customer_service_agent",
+    description="Handles customer intake, classification, and ticketing",
+    instruction="""You are a customer intake specialist. Summarize the issue and
+classify its priority using the supplied policy. Ask for missing details.
+Do not request credentials or claim that a ticket has been created.""",
+    planner=BuiltInPlanner(
+        thinking_config=types.ThinkingConfig(include_thoughts=True, thinking_budget=1024)
+    ),
+    output_schema=TicketOutput
+)
+```
+
+### Dataset analysis
+
+Returns insights and metrics from supplied data. Use calculation tools for reliable numerical analysis when needed.
+
+```python
+from google.adk.agents import LlmAgent
+from pydantic import BaseModel, Field
+from typing import List, Dict, Any
+
+class AnalysisOutput(BaseModel):
+    insights: List[str] = Field(description="Key insights")
+    metrics: Dict[str, Any] = Field(description="Performance metrics")
+
+analysis_agent = LlmAgent(
+    model="gemini-pro-latest",
+    name="data_processing_agent",
+    description="Analyzes input datasets and produces structured metric outputs",
+    instruction="""Analyze only the supplied dataset. Identify trends and report
+metrics with their units and assumptions. Flag missing data; do not invent it.""",
+    output_schema=AnalysisOutput
+)
+```
+
+### Approval-routing workflow
+
+Combines process instructions, generation settings, and a session-state output key. It recommends routing without executing approval actions.
+
+```python
+from google.adk.agents import LlmAgent
+from google.genai import types
+
+workflow_agent = LlmAgent(
+    model="gemini-flash-latest",
+    name="approval_workflow_agent",
+    description="Drafts policy checks and approval-routing recommendations",
+    instruction="""Compare the request with the policy supplied by the user.
+Identify the applicable rules and recommend an approval route. If policy or
+evidence is missing, request it. Do not claim to grant approval or execute actions.""",
+    output_key="approval_review",
+    generate_content_config=types.GenerateContentConfig(
+         temperature=0.1,  # Lower variation where supported
+        safety_settings=[
+            types.SafetySetting(
+                category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                threshold=types.HarmBlockThreshold.BLOCK_LOW_AND_ABOVE
+            )
+        ]
+    )
+)
+```
+
+### Educational tutor
+
+Combines a teaching methodology with planning, without requesting thought summaries.
+
+```python
+from google.adk.agents import LlmAgent
+from google.adk.planners import BuiltInPlanner
+from google.genai import types
+
+tutor_agent = LlmAgent(
+    model="gemini-pro-latest",
+    name="educational_tutor_agent",
+    description="Provides guided step-by-step tutoring using deliberate pedagogical planning",
+    instruction="""Act as a patient tutor. Assess the learner's understanding,
+ask one guiding question at a time, and give hints before a solution.
+Explain mistakes respectfully and check understanding.""",
+    planner=BuiltInPlanner(
+        thinking_config=types.ThinkingConfig(include_thoughts=False, thinking_budget=2048)
+    ),
+    generate_content_config=types.GenerateContentConfig(
+        temperature=0.7,
+        max_output_tokens=4000,
+    ),
+)
+```
+
+### Reusable professional service template
+
+Combines instructions, planning, structured output, and generation settings. Replace every bracketed placeholder before use.
+
+```python
+from google.adk.agents import LlmAgent
+from google.adk.planners import BuiltInPlanner
+from google.genai import types
+from pydantic import BaseModel, Field
+from typing import Dict, Any
+
+class ServiceResponse(BaseModel):
+    response: str = Field(description="The response to the user")
+    action_required: bool = Field(description="Whether action is needed")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+
+professional_agent = LlmAgent(
+    model="gemini-flash-latest",
+    name="service_pro",
+    description="Professional service agent handling customer requests with structured output",
+    instruction="""
+    # PERSONA
+    You are [Name], a [Role] with [Experience].
+
+    # BOUNDARIES
+    Never: [List of restrictions]
+    Always: [List of requirements]
+
+    # EXAMPLES
+    [Few-shot examples]
+    """,
+    planner=BuiltInPlanner(
+        thinking_config=types.ThinkingConfig(include_thoughts=True, thinking_budget=1024)
+    ),
+    output_schema=ServiceResponse,
+    generate_content_config=types.GenerateContentConfig(
+        temperature=0.7,
+        max_output_tokens=2500,
+        safety_settings=[
+            types.SafetySetting(
+                category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                threshold=types.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE
+            )
+        ]
+    )
+)
+```
+
+### Structured entity extraction
+
+Extracts typed entities and relationships. Confidence scores are model estimates, not calibrated probabilities.
+
+```python
+from google.adk.agents import LlmAgent
+from pydantic import BaseModel, Field
+from typing import List, Dict, Any
+from google.genai import types
+
+class Entity(BaseModel):
+    type: str = Field(description="Entity type")
+    value: str = Field(description="Entity value")
+    confidence: float = Field(ge=0, le=1, description="Uncalibrated model confidence, 0-1")
+
+class ExtractionOutput(BaseModel):
+    entities: List[Entity] = Field(description="Extracted entities")
+    relationships: List[str] = Field(description="Relationships found")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Extraction metadata")
+
+extractor = LlmAgent(
+    model="gemini-flash-latest",
+    name="data_extractor",
+    description="Extracts structured entities and relationships from raw text",
+    instruction="Extract structured data from text",
+    output_schema=ExtractionOutput,
+    generate_content_config=types.GenerateContentConfig(
+        temperature=0.1,  # Lower variation where supported
+        thinking_config=types.ThinkingConfig(
+            thinking_budget=0,  # Only where disabling thinking is supported
+        ),
+        max_output_tokens=1000,
+    ),
+)
+```
+
+### Policy decision support
+
+Uses planning to assess a request and stores the recommendation in session state for downstream review.
+
+```python
+from google.adk.agents import LlmAgent
+from google.adk.planners import BuiltInPlanner
+from google.genai import types
+
+decision_agent = LlmAgent(
+    model="gemini-pro-latest",
+    name="decision_maker",
+    description="Evaluates requests against organizational policies",
+    instruction="""
+    Evaluate requests against the supplied organizational policy.
+    Cite applicable rules and identify missing evidence or dependencies.
+    Return a recommendation for review; do not grant approval or execute actions.
+    """,
+    planner=BuiltInPlanner(
+        thinking_config=types.ThinkingConfig(include_thoughts=False, thinking_budget=2048)
+    ),
+    output_key="approval_review",  # Store result in session state
+    generate_content_config=types.GenerateContentConfig(
+         temperature=0.1,  # Lower variation where supported
+        max_output_tokens=3000,
+    ),
+)
+```
+
+### Practices to carry forward
+
+- **Instructions:** Combine identity, mission, methodology, boundaries, and
+  two or three input/output examples. Use Markdown and replace template
+  placeholders with domain-specific requirements before running an agent.
+- **Model selection:** Establish a quality baseline, then compare models on the
+  same tasks for quality, latency, and cost. A Pro-to-Flash comparison is one
+  experiment, not a universal deployment rule. Tune supported sampling settings
+  against measured results and apply audience-appropriate safety controls.
+- **Planning:** Use `BuiltInPlanner` with supported native thinking models.
+  Consider `PlanReActPlanner` for an explicit plan-and-act pattern; it is not
+  limited to non-Gemini models. Account for both thinking and final-answer tokens
+  in the output budget, and use summaries alongside tool events for debugging.
+- **Structured output:** Define Pydantic models with field descriptions and
+  explicit defaults for optional values. Use `default_factory=dict` for an
+  empty dictionary default. Parse and validate JSON before passing it to a
+  consuming application; schema compliance does not prove factual correctness.
+- **State and actions:** Use `output_key` for passing response text through
+  session state. Connect tools for real ticket creation or routing, and enforce
+  authorization and policy rules in application code.
+
+### Try one example
+
+Copy one snippet into an ADK project's `agent.py` and export its agent as
+`root_agent`, for example `root_agent = customer_agent`. Configure credentials
+and a supported model, then run `adk web` from the project's parent directory.
+Test a normal request, missing information, and an out-of-scope request.
+For the professional-service template, fill in the persona, boundaries, and
+few-shot examples first.
+
+For structured responses, validate the final JSON with the matching Pydantic
+model, for example `TicketOutput.model_validate_json(response_text)`. For
+workflow examples, inspect session state and confirm that the saved result is
+the recommendation text. Record actual behavior rather than assuming that the
+configuration alone makes an agent ready for production.
+
+## 6. Common pitfalls to avoid
+
+### Instruction mistakes
+
+- **Vague personas:** Specify expertise, domain knowledge, and responsibilities
+  rather than assigning only a role name.
+- **Missing boundaries:** Define scope, privacy, and communication rules to
+  reduce inappropriate or off-brand responses.
+- **No few-shot examples:** Include representative inputs and outputs to make
+  expected behavior concrete, especially for edge cases.
+- **Over-complex instructions:** Avoid conflicting, redundant, or unnecessarily
+  elaborate rules. Make priorities and the workflow clear.
+- **Hard-coded templates:** Separate reusable instruction structure from domain
+  details, while still supplying the specific expertise and rules the task needs.
+
+### Configuration errors
+
+- **An untested quality baseline:** Pro can be useful for prototyping, but
+  starting with Flash is not inherently wrong. Compare representative results
+  rather than assuming a model label determines suitability.
+- **Overspending on simple tasks:** Reassess a more expensive model for
+  high-volume work when a cheaper model might meet the same quality target.
+- **Mismatched safety settings:** Thresholds that are too lenient or too strict
+  for the audience can allow unsuitable responses or block legitimate requests.
+- **Treating temperature ranges as guarantees:** On models supporting the
+  Gemini 0.0–2.0 scale, 1.1–2.0 can be explored for greater randomness, but
+  creative work does not require that range. Values such as 0.8–1.0 can also
+  produce varied ideas. Check support; some models ignore sampling overrides.
+- **An output budget that is too tight:** Setting `max_output_tokens` without
+  allowing for thinking tokens can leave insufficient room for the final answer.
+
+### Planning problems
+
+- **Insufficient structure for complex tasks:** Evaluate planning and provide
+  decomposition guidance and constraints. A missing explicit planner does not
+  necessarily mean the model is not thinking.
+- **The wrong planner type:** `BuiltInPlanner` requires compatible native
+  thinking capabilities. Consider a supported alternative such as
+  `PlanReActPlanner` where appropriate.
+- **Missing realistic constraints:** Supply budgets, deadlines, dependencies,
+  available resources, and success criteria so plans are practical.
+- **Over-planning simple tasks:** Extra reasoning for greetings or single-step
+  requests may add latency and cost without improving the result.
+- **Poorly tuned thinking settings:** Select `thinking_budget` or
+  `thinking_level` according to model support, then measure quality and usage.
+  A larger budget is not automatically better.
+- **Untested sampling settings:** High temperature can increase variation where
+  supported, but low temperature does not guarantee systematic thinking. Follow
+  model-specific guidance and evaluate plan consistency and feasibility.
+
+### Output issues
+
+- **Skipping the typed schema:** For this lab's Pydantic approach, pass a
+  `BaseModel` subclass to `output_schema`, not an ordinary example dictionary.
+- **Missing required fields:** Explicitly define every field downstream code
+  needs instead of expecting the model to add it reliably.
+- **Unclear field meanings:** Use `Field(description=...)` to explain content,
+  units, and interpretation.
+- **No missing-data handling:** Define which fields may be absent or `None`,
+  provide appropriate defaults, and instruct the agent not to invent values.
+- **Inconsistent names:** Use stable field-naming conventions for predictable
+  integration with consuming applications.
+- **No validation before use:** Parse and validate data, check business rules,
+  and handle failures before production use. Schema compliance does not prove
+  factual correctness.
+
 ## Other optimization areas
 
 - **Model configuration:** Select model settings to match the task rather than

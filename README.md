@@ -102,7 +102,11 @@ their effect. It also explains [output tokens and sampling](labs/04-optimization
 to control response length and diversity with model-supported settings. The
 [structured thinking section](labs/04-optimization/README.md#4-the-problem-complex-tasks-need-structured-thinking)
 introduces `BuiltInPlanner`, thinking configuration, planner selection, and a
-hands-on problem-solving exercise. Start with the lesson on [structured instructions](https://www.skills.google/paths/3545/course_templates/1564/html_bundles/686132).
+hands-on problem-solving exercise. [Section 5](labs/04-optimization/README.md#5-putting-it-all-together-agent-patterns)
+combines these skills into seven agent examples, also collected with code in the
+[cheat sheet](cheat-sheet-google-adk.md#agent-examples). [Section 6](labs/04-optimization/README.md#6-common-pitfalls-to-avoid)
+reviews common instruction, configuration, planning, and output pitfalls. Start
+with the lesson on [structured instructions](https://www.skills.google/paths/3545/course_templates/1564/html_bundles/686132).
 
 ### MCP
 The Model Context Protocol (MCP) makes it possible for agents to interact with external tools and services in a standardized, extensible way.
