@@ -146,10 +146,122 @@ Notice whether the agent maintains its identity, stays focused on its mission,
 follows the workflow, respects boundaries, and reflects the examples' style.
 Iterate on the instruction and retest the same scenarios to compare behavior.
 
+## The problem: unpredictable output breaks integrations
+
+Free-form text can be easy for a person to understand, but it is difficult for
+applications to consume reliably. An agent asked to extract a product name,
+price, and storage could return a labeled sentence, a paragraph, or a
+dash-separated list. This means:
+
+- The format can vary between requests.
+- Parsing text is fragile and error-prone.
+- Missing or malformed fields are not caught by a schema.
+- Databases and downstream systems cannot rely on a stable contract.
+
+Prompt instructions alone describe the desired information, but do not define a
+machine-validated response structure. ADK's `output_schema` uses a Pydantic
+`BaseModel` to specify the fields and types the agent's final response must
+follow. See [ADK's structured data guidance](https://adk.dev/agents/llm-agents/#data-handling).
+
+## The solution: structured output with Pydantic
+
+Define the output contract as a Pydantic model. The schema must inherit from
+`BaseModel`; use typed fields and `Field(description=...)` to explain their
+meaning. Pass the model class itself to `output_schema`, not an instance or a
+plain dictionary.
+
+```python
+from pydantic import BaseModel, Field
+
+
+class ProductInfo(BaseModel):
+	product_name: str = Field(description="The name of the product")
+	price: float = Field(description="The price in USD")
+	storage: str = Field(description="The storage capacity")
+```
+
+Apply the schema to an ADK agent:
+
+```python
+from google.adk.agents import LlmAgent
+
+structured_agent = LlmAgent(
+	model="gemini-flash-latest",
+	name="structured_product_agent",
+	description="Extracts product information as structured data",
+	instruction="Extract the product name, price in USD, and storage capacity.",
+	output_schema=ProductInfo,
+)
+```
+
+The final response is constrained to the schema's JSON structure. The schema is
+the contract: only fields defined by the Pydantic model are included. Add nested
+models, collections, optional fields, or metadata explicitly when the consuming
+application needs them. On supported Gemini platform models, controlled
+generation can enforce the schema at the model level.
+
+## Hands-on: build a product extraction agent
+
+Create a new project:
+
+```bash
+adk create product_extractor
+cd product_extractor
+```
+
+Replace `agent.py` with the following example:
+
+```python
+from google.adk.agents import LlmAgent
+from pydantic import BaseModel, Field
+
+
+class ProductInfo(BaseModel):
+	product_name: str = Field(description="The full name of the product")
+	price: float = Field(description="The price in USD")
+	storage: str = Field(description="Storage capacity, such as 256GB")
+	color: str = Field(default="Not specified", description="Product color if mentioned")
+
+
+root_agent = LlmAgent(
+	model="gemini-flash-latest",
+	name="product_extractor",
+	description="Extracts product information and returns structured output",
+	instruction="""
+Extract the product name, price in USD, storage capacity, and color from the
+user's message. Use a numeric value for price without a currency symbol. Include
+the storage unit. If the color is not mentioned, use "Not specified".
+""",
+	output_schema=ProductInfo,
+	output_key="extracted_product",
+)
+```
+
+`output_key` stores the text content of the agent's final response in session
+state under the given key. This is useful when a workflow needs to pass extracted
+data to another agent or use it in a later step.
+
+Run the agent and test it with several inputs:
+
+```bash
+adk web
+```
+
+Try `I want the iPhone 15 Pro with 256GB in Space Black for $999`, then try a
+request without a color, such as `Samsung Galaxy S24 with 512GB, costs $1199`.
+Check that both responses follow the same schema and that the default color is
+used when the input omits it.
+
+Structured output is useful for root agents and intermediate agents alike. In a
+multi-agent workflow, an extraction sub-agent can use an `output_schema` to
+produce consistent data, and an `output_key` to make its result available to a
+later step. Define every field needed by downstream steps in the schema.
+
+**Remember:** use instructions to describe the extraction task and meaning of
+the data; use `output_schema` to define the response format and field types.
+
 ## Other optimization areas
 
-- **Structured output:** Use a Pydantic schema when downstream code needs a
-  predictable response shape.
 - **Model configuration:** Select model settings to match the task rather than
   assuming one configuration fits every use case.
 - **Planning:** Explore ADK's `BuiltInPlanner` for tasks that benefit from
