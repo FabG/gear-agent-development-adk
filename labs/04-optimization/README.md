@@ -338,10 +338,95 @@ categories. Common thresholds range from strict blocking such as
 according to the application's policies and the model's supported options; do
 not disable filters casually.
 
+```python
+from google.genai import types
+
+# Strict safety for public-facing agents
+strict_config = types.GenerateContentConfig(
+    safety_settings=[
+        types.SafetySetting(
+            category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+            threshold=types.HarmBlockThreshold.BLOCK_LOW_AND_ABOVE
+        ),
+        types.SafetySetting(
+            category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
+            threshold=types.HarmBlockThreshold.BLOCK_LOW_AND_ABOVE
+        ),
+        types.SafetySetting(
+            category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+            threshold=types.HarmBlockThreshold.BLOCK_LOW_AND_ABOVE
+        ),
+        types.SafetySetting(
+            category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+            threshold=types.HarmBlockThreshold.BLOCK_LOW_AND_ABOVE
+        )
+    ]
+)
+```
+
+Apply this configuration with `generate_content_config=strict_config` in your
+agent definition.
+
 Model-level settings complement, but do not replace, platform-managed safety
 controls, enterprise guardrails, or Agent Gateway policy checks. For non-Gemini
 models, consult the provider's documentation because configuration options may
 differ.
+
+### Output tokens and sampling
+
+Control response length and diversity with an output-token limit and sampling
+settings. These examples illustrate a larger response budget and a smaller,
+more focused configuration for models that support these controls:
+
+```python
+from google.genai import types
+
+comprehensive_config = types.GenerateContentConfig(
+    temperature=0.7,
+    max_output_tokens=2000,  # Allow longer responses
+    top_p=0.95,             # Retain candidates covering 95% of probability mass
+    top_k=40,               # Consider up to 40 likely next tokens
+)
+
+concise_config = types.GenerateContentConfig(
+    temperature=0.3,
+    max_output_tokens=100,  # Set a small output budget
+    top_p=0.8,              # More focused sampling
+    top_k=10,               # Fewer token choices
+    thinking_config=types.ThinkingConfig(
+        thinking_budget=0,  # Disable thinking on models that support this setting
+    ),
+)
+```
+
+Pass either configuration to an agent's `generate_content_config` parameter.
+
+**Parameters explained:**
+
+- **`max_output_tokens`:** The maximum generated output length in tokens; the
+  default and supported maximum vary by model. Tokens are pieces of text, not
+  necessarily whole words. A larger limit allows a longer response but does not
+  require one. A small limit can cut off an answer, so also request brevity in
+  the agent's instructions.
+- **`top_p`:** Nucleus sampling keeps the most likely next-token candidates
+  whose cumulative probability reaches the threshold. `0.95` means 95% of
+  probability mass, not 95% of the vocabulary.
+- **`top_k`:** Restricts sampling to the K most likely next tokens. Where both
+  controls are supported, `top_k` and `top_p` jointly narrow the candidate pool;
+  temperature affects selection among the remaining candidates.
+
+See Google's [generation parameter reference](https://ai.google.dev/api/generate-content#v1beta.GenerationConfig)
+for parameter definitions and model-specific support.
+
+Thinking can also consume the output budget, leaving fewer tokens for the
+visible answer. `thinking_budget=0` disables thinking only on models that support
+turning it off this way; other models use `thinking_level` or require thinking.
+See the [thinking guide](https://ai.google.dev/gemini-api/docs/thinking).
+
+These sampling examples are model-dependent: newer models may ignore custom
+sampling values. Check the selected model's
+[supported generation parameters](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/capabilities/content-generation-parameters)
+before comparing configurations, especially when using a `latest` alias.
 
 ### Hands-on: compare factual and creative agents
 

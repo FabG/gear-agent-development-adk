@@ -98,7 +98,9 @@ course also covers structured output, model selection, and planning with ADK's
 
 The corresponding [optimization lab](labs/04-optimization/README.md) provides
 a support-agent example and scenarios for applying the patterns and evaluating
-their effect. Start with the lesson on [structured instructions](https://www.skills.google/paths/3545/course_templates/1564/html_bundles/686132).
+their effect. It also explains [output tokens and sampling](labs/04-optimization/README.md#output-tokens-and-sampling)
+to control response length and diversity with model-supported settings. Start
+with the lesson on [structured instructions](https://www.skills.google/paths/3545/course_templates/1564/html_bundles/686132).
 
 ### MCP
 The Model Context Protocol (MCP) makes it possible for agents to interact with external tools and services in a standardized, extensible way.
