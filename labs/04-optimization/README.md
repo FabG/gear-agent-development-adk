@@ -10,7 +10,7 @@ This lab follows the [Optimize Agent Behavior course](https://www.skills.google/
 and the lessons on [vague instructions](https://www.skills.google/paths/3545/course_templates/1564/html_bundles/686131)
 and [structured instructions](https://www.skills.google/paths/3545/course_templates/1564/html_bundles/686132).
 
-## The problem: vague instructions create unpredictable behavior
+## 1. The problem: vague instructions create unpredictable behavior
 
 A short instruction such as `"Be helpful"` gives the model no reliable framework
 for deciding which tasks are in scope, what method or tone to use, how to handle
@@ -146,7 +146,7 @@ Notice whether the agent maintains its identity, stays focused on its mission,
 follows the workflow, respects boundaries, and reflects the examples' style.
 Iterate on the instruction and retest the same scenarios to compare behavior.
 
-## The problem: unpredictable output breaks integrations
+## 2. The problem: unpredictable output breaks integrations
 
 Free-form text can be easy for a person to understand, but it is difficult for
 applications to consume reliably. An agent asked to extract a product name,
@@ -259,6 +259,145 @@ later step. Define every field needed by downstream steps in the schema.
 
 **Remember:** use instructions to describe the extraction task and meaning of
 the data; use `output_schema` to define the response format and field types.
+
+## 3. The problem: one size doesn't fit all
+
+Using default model settings can waste resources, reduce output consistency, or
+fail to meet a task's safety and governance requirements. Different tasks need
+different configurations: a greeting agent may not need an expensive model,
+while factual extraction benefits from more consistent generation settings.
+
+Default settings can leave you without appropriate control over:
+
+- **Model choice and cost:** a more capable model may be unnecessary for a
+	simple task.
+- **Creativity versus consistency:** open-ended generation and factual
+	extraction may need different sampling settings.
+- **Output limits:** applications may need a bounded response size.
+- **Safety and governance:** public-facing agents may need settings aligned
+	with organizational requirements.
+
+### Strategic model selection
+
+Choose a model according to task complexity, quality requirements, latency, and
+cost. A practical starting point is to establish a quality baseline with a
+capable model, then evaluate whether a faster, lower-cost model meets the task's
+requirements. Check current model availability and pricing before making that
+choice; model names and costs can change.
+
+### Configure generation with `GenerateContentConfig`
+
+ADK's optional `generate_content_config` accepts a
+`google.genai.types.GenerateContentConfig` instance. It can control temperature,
+maximum output tokens, `top_p`, `top_k`, and supported safety settings.
+
+```python
+from google.adk.agents import LlmAgent
+from google.genai import types
+
+factual_agent = LlmAgent(
+	model="gemini-flash-latest",
+	name="data_extractor",
+	description="Extracts facts consistently",
+	instruction="Extract only facts stated in the input. Do not infer or invent details.",
+	generate_content_config=types.GenerateContentConfig(
+		temperature=0.1,
+		max_output_tokens=500,
+		top_p=0.8,
+		top_k=10,
+		thinking_config=types.ThinkingConfig(thinking_budget=0),
+	),
+)
+```
+
+Use settings that the selected model supports. For example, a thinking budget
+may not apply to every model. `max_output_tokens` limits generated output, and
+sampling values should be tuned and evaluated together for the task.
+
+### Temperature: creativity versus consistency
+
+Temperature controls randomness in generated responses. Treat these as starting
+points, not guarantees:
+
+| Temperature | Typical use |
+| --- | --- |
+| `0.0`–`0.3` | Factual extraction, code generation, and structured responses |
+| `0.4`–`1.0` | Summarization, support, roleplay, and general assistance |
+| `1.1`–`2.0` | Brainstorming and other exploratory creative work |
+
+Lower temperature tends to reduce variation; higher temperature tends to produce
+more varied responses. It does not by itself guarantee factual accuracy or
+prevent hallucinations.
+
+### Safety settings
+
+Gemini generation configuration can set content-filter thresholds for supported
+categories. Common thresholds range from strict blocking such as
+`BLOCK_LOW_AND_ABOVE`, through `BLOCK_MEDIUM_AND_ABOVE` and
+`BLOCK_ONLY_HIGH`, to `BLOCK_NONE` or `OFF` where available. Select thresholds
+according to the application's policies and the model's supported options; do
+not disable filters casually.
+
+Model-level settings complement, but do not replace, platform-managed safety
+controls, enterprise guardrails, or Agent Gateway policy checks. For non-Gemini
+models, consult the provider's documentation because configuration options may
+differ.
+
+### Hands-on: compare factual and creative agents
+
+Create a project:
+
+```bash
+adk create model_comparison
+cd model_comparison
+```
+
+In `agent.py`, define two agents with task-appropriate model and generation
+settings. Use one as `root_agent` at a time to try it with `adk web`:
+
+```python
+from google.adk.agents import LlmAgent
+from google.genai import types
+
+factual_agent = LlmAgent(
+	model="gemini-flash-latest",
+	name="data_extractor",
+	description="Extracts facts with consistent responses",
+	instruction="Extract facts exactly as stated. Do not add or infer information.",
+	generate_content_config=types.GenerateContentConfig(
+		temperature=0.1,
+		max_output_tokens=500,
+		top_p=0.8,
+		top_k=10,
+		thinking_config=types.ThinkingConfig(thinking_budget=0),
+	),
+)
+
+creative_agent = LlmAgent(
+	model="gemini-pro-latest",
+	name="creative_brainstormer",
+	description="Generates diverse ideas for brainstorming",
+	instruction="Generate imaginative, varied ideas and explain them clearly.",
+	generate_content_config=types.GenerateContentConfig(
+		temperature=1.3,
+		max_output_tokens=1200,
+		top_p=0.95,
+		top_k=40,
+	),
+)
+
+root_agent = factual_agent
+```
+
+Run the app with `adk web` and try:
+
+- With `root_agent = factual_agent`: `Extract key information: The iPhone 15 Pro was released in September 2023 and starts at $999 for 128GB.`
+- With `root_agent = creative_agent`: `Brainstorm five innovative features for a next-generation smartphone.`
+
+Switch the root agent and restart the web server between tests. Compare
+consistency, variation, response length, and usefulness. Also compare model
+choices against the same prompts rather than assuming a model or setting is best
+for every task.
 
 ## Other optimization areas
 
