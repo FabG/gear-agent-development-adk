@@ -420,6 +420,140 @@ Boundaries: Never/Always lists
 Few-shot: Input → Output examples
 ```
 
+## Using ADK with other LLMs
+
+Google ADK is not limited to Gemini. Python ADK's `LiteLlm` adapter connects
+agents to LiteLLM-supported cloud providers and local model servers, including
+OpenAI, Anthropic, Ollama, and vLLM. Gemini supports direct model-name strings;
+external providers can use `model=LiteLlm(...)`. See the
+[ADK model overview](https://adk.dev/agents/models/) and
+[LiteLLM ADK tutorial](https://docs.litellm.ai/docs/tutorials/google_adk).
+
+This provides broad model compatibility, not a guarantee that every LLM supports
+every ADK feature. Check tool calling, structured output, streaming, and planning
+support for the selected model and connector. Gemini-specific safety and thinking
+settings are not automatically portable to other providers.
+
+### Step-by-step setup with LiteLLM
+
+1. Install dependencies in your Python environment:
+
+   ```bash
+   python -m pip install google-adk litellm
+   ```
+
+2. Configure credentials for the provider you intend to use. Replace the
+   placeholders locally; keep real keys out of source control:
+
+   ```bash
+   export OPENAI_API_KEY="your-openai-key"
+   export ANTHROPIC_API_KEY="your-anthropic-key"
+   ```
+
+3. Select model IDs available to your account. These environment variables are
+   used by the example below; replace the placeholders before running:
+
+   ```bash
+   export OPENAI_MODEL="openai/YOUR_AVAILABLE_MODEL_ID"
+   export ANTHROPIC_MODEL="anthropic/YOUR_AVAILABLE_MODEL_ID"
+   export OLLAMA_API_BASE="http://localhost:11434"
+   ```
+
+4. Wrap each external model in `LiteLlm`:
+
+   ```python
+   import os
+
+   from google.adk.agents import Agent
+   from google.adk.models.lite_llm import LiteLlm
+
+   openai_agent = Agent(
+       name="openai_helper",
+       model=LiteLlm(model=os.environ["OPENAI_MODEL"]),
+       instruction="You are a helpful assistant.",
+   )
+
+   claude_agent = Agent(
+       name="claude_helper",
+       model=LiteLlm(model=os.environ["ANTHROPIC_MODEL"]),
+       instruction="You are a helpful assistant.",
+   )
+
+   local_agent = Agent(
+       name="local_helper",
+       model=LiteLlm(model="ollama_chat/llama3.3"),
+       instruction="You are a helpful assistant.",
+   )
+
+   # Select the agent to expose through the ADK CLI or web UI.
+   root_agent = openai_agent
+   ```
+
+   Keep only the definitions you need, or configure both model-ID variables
+   when copying the full example. Ollama requires a running local server and
+   the chosen model downloaded. Use a model your hardware can run.
+
+ADK recommends the `ollama_chat` prefix rather than `ollama` for conversational
+agents and setting `OLLAMA_API_BASE` for the local server. For tool-using agents,
+choose an Ollama model with tool support. See the
+[ADK Ollama guide](https://adk.dev/agents/models/ollama/).
+
+### Model connection methods
+
+| Connection type | Implementation | Typical use |
+| --- | --- | --- |
+| Direct Gemini name | `model="gemini-flash-latest"` | Native Gemini access with the configured Google backend |
+| LiteLLM adapter | `model=LiteLlm(model="provider/model-id")` | Supported providers such as OpenAI, Anthropic, Mistral, Cohere, Bedrock, Azure, and Ollama |
+| OpenAI-compatible server | `LiteLlm` with an `openai/` model prefix and server `api_base` | Compatible endpoints such as vLLM |
+| Apigee connector | `model=ApigeeLlm(...)` | Model traffic routed through an enterprise Apigee gateway |
+| Hosted model endpoint | Supported endpoint resource name or adapter, as documented for that deployment | Compatible custom or open-weight models hosted on Google's cloud platform |
+
+Endpoint paths alone do not make arbitrary deployments compatible. Follow the
+model-specific authentication and serving requirements in the
+[hosted-model guide](https://adk.dev/agents/models/agent-platform/) and
+[Apigee guide](https://adk.dev/agents/models/apigee/).
+
+For a running vLLM OpenAI-compatible server, configure its served model name
+and API base, for example:
+
+```python
+from google.adk.agents import Agent
+from google.adk.models.lite_llm import LiteLlm
+
+root_agent = Agent(
+    name="vllm_helper",
+    model=LiteLlm(
+        model="openai/YOUR_SERVED_MODEL_NAME",
+        api_base="http://localhost:8000/v1",
+    ),
+    instruction="You are a helpful assistant.",
+)
+```
+
+Replace the served model name and configure authentication if the server
+requires it. Tool calling also requires compatible model and server settings;
+see the [ADK vLLM guide](https://adk.dev/agents/models/vllm/).
+
+### Multi-agent and local-model tips
+
+- **Mix models by task:** Assign different model adapters to different
+  sub-agents, such as a local model for routing and a cloud model for analysis.
+  Evaluate handoffs and tool use with the actual models selected.
+- **Plan with compatible models:** `PlanReActPlanner()` from
+  `google.adk.planners` provides an explicit plan-and-act instruction pattern
+  that can help models without native thinking. It does not add native
+  reasoning tokens or guarantee reliable execution.
+- **Test through ADK:** Put the selected `root_agent` in an ADK package such as
+  `multi_model_agent/agent.py`, with `__init__.py` importing `agent`. From its
+  parent directory, run either command below after configuring credentials and
+  starting any local model server:
+
+  ```bash
+  adk run multi_model_agent
+  # Or launch the browser UI and select multi_model_agent:
+  adk web
+  ```
+
 ## Related references
 
 - [README.md](README.md)
